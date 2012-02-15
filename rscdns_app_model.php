@@ -59,7 +59,13 @@ class RscdnsAppModel extends AppModel {
 		die("Sorry, bad method call on {$this->alias}");
 	}
 	
-	
+	/* ------------------ */
+	/*
+	* Get list of all domains for account
+	*/
+	public function getDomains(){
+		return parent::getDomains();
+	}
 	
 	
 	

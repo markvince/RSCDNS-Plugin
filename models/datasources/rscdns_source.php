@@ -51,11 +51,10 @@ class RscdnsSource extends DataSource {
 			App::import('Core', 'HttpSocket');
 		}
 		$this->Http = new HttpSocket();
-		//$this->__authenticate();
+		$this->__authenticate();
 	}
 	
 	public function __authenticate($a=array()) {
-		echo "Authenticating...";
 		$auth_config = RscdnsUtil::getConfig('auth');
 		$auth = array_merge($auth_config,$a);
 		if (array_key_exists('token',$auth) && !empty($auth['token'])) {
@@ -80,8 +79,8 @@ class RscdnsSource extends DataSource {
 			//		),
 			//	);
 			$request = '{"credentials" : {"username" : "'.$auth['username'].'","key" : "'.$auth['key'].'"}}';
-			print_r($url);
-			print_r($request);
+			//print_r($url);
+			//print_r($request);
 			$this->Http->reset();
 			$response = $this->Http->post($url,$request,array(
 				'header'=>array(
@@ -125,7 +124,34 @@ class RscdnsSource extends DataSource {
 	* Not currently possible to read data. Method not implemented.
 	*/
 	public function read(&$Model, $queryData = array()) {
-		return false;
+		$uri = '';
+		$query = array();
+		/*list all domain info*/
+		if (!isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['domainName'])) {
+			$uri = '/domains'; 
+		}
+		/*list single domain info for domainId */
+		if (isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['domainName'])) {
+			$uri = '/domains/'.$queryData['conditions']['domainId']; 
+		}
+		/*list all domain info where matches domainName */
+		if (!isset($queryData['conditions']['domainId']) && isset($queryData['conditions']['domainName'])) {
+			$uri = '/domains';
+			$query['name'] = $queryData['conditions']['domainName']; 
+		}
+		/*list domain records and or subdomains for domainId*/
+		if (isset($queryData['conditions']['domainId'])	&& (isset($queryData['conditions']['showRecords']) || isset($queryData['conditions']['showSubdomains']))) {
+			$uri = '/domains/'.$queryData['conditions']['domainId'];
+			$query = $queryData['conditions'];
+			unset($query['domainId']);
+		}
+		
+		/* Query RSC DNS */
+		$response = $this->__request(array('uri'=>$uri,'query'=>$query), 'get');
+		
+		return $response;
+		
+		
 	}
 	/**
 	* Create a new zone entry
@@ -147,119 +173,8 @@ class RscdnsSource extends DataSource {
 	public function delete(&$Model, $id = null) {
 		return false;
 	}
-	/**
-	* Place data into proper form for tranmission to RSC
-	* @param mixed $data
-	* @return string $xml
-	*/
-	public function prepareApiData($data = null, &$Model=null) {
-		/*
-		if (empty($data)) {
-			return false;
-		}
-		if (is_string($data)) {
-			// assume it's a XML body already
-			return $data;
-		}
-		// litleOnlineRequestKey wrapper
-		if (array_key_exists('litleOnlineRequest', $data)) {
-			$litleOnlineRequestKey = $data['litleOnlineRequest'];
-			unset($data['litleOnlineRequest']);
-		} else {
-			$attrib = array(
-				'version' => LitleUtil::getConfig('version'),
-				'url_xmlns' => LitleUtil::getConfig('url_xmlns'),
-				'merchantId' => LitleUtil::getConfig('merchantId'),
-				);
-			$litleOnlineRequestKey = 'litleOnlineRequest|'.json_encode($attrib);
-		}
-		// authentication
-		if (array_key_exists('authentication', $data)) {
-			$authentication = $data['authentication'];
-			unset($data['authentication']);
-		} else {
-			$authentication = array('authentication' => array(
-				'user' => LitleUtil::getConfig('user'),
-				'password' => LitleUtil::getConfig('password'),
-				));
-		}
-		// root wrapper
-		if (array_key_exists('root', $data)) {
-			$root = $data['root'];
-			unset($data['root']);
-		} else {
-			$root = (isset($Model->alias) ? $Model->alias : null);
-		}
-		// re-order and nest
-		if (is_string($root) && !empty($root)) {
-			$data = array($root => $data);
-		}
-		$requestArray = array($litleOnlineRequestKey => array_merge($authentication, $data));
-		$xml = ArrayToXml::build($requestArray);
-		$xml = str_replace('url_xmlns', 'xmlns', $xml); // special replacement
-		$xml = str_replace('><', ">\n<", $xml); // formatting with linebreaks
-		#$xml = preg_replace('#(<[^/>]*>)(<[^/>]*>)#', "\$1\n\$2", $xml);
-		#$xml = preg_replace('#(</[a-zA-Z0-9]*>)(</[a-zA-Z0-9]*>)#', "\$1\n\$2", $xml);
-		$function = __function__;
-		$this->log[] =compact('func', 'data', 'requestArray', 'xml');
-		
-		*/
-		return $xml;
-	}
-	/**
-	* Parse the response data from a post to authorize.net
-	* @param string $response
-	* @param object $Model
-	* @return array
-	*/
-	public function parseResponse($response, &$Model=null) {
-		/*
-		$errors = array();
-		$transaction_id = null;
-		$response_raw = '';
-		$response_array = array();
-		if (is_string($response)) {
-			$response_raw = $response;
-			if (!class_exists('Xml')) {
-				App::import("Core", "Xml");
-			}
-			$Xml = new Xml($response);
-			$response_array = $Xml->toArray();
-		} elseif (is_array($response_array)) {
-			$response_array = $response;
-			if (array_key_exists('response_raw', $response_array)) {
-				$response_raw = $response_array['response_raw'];
-				unset($response_array['response_raw']);
-			}
-		} else {
-			$errors[] = 'Response is in invalid format';
-		}
-		// boil down to just the response we are interested in
-		if (array_key_exists('litleOnlineResponse', $response_array)) {
-			$response_array = $response_array['litleOnlineResponse'];
-		} elseif (array_key_exists('LitleOnlineResponse', $response_array)) {
-			$response_array = $response_array['LitleOnlineResponse'];
-		}
-		// verify response_array
-		if (!is_array($response_array)) {
-			$errors[] = 'Response is not formatted as an Array';
-		} elseif (!array_key_exists('response', $response_array)) {
-			$errors[] = 'Response.response missing (request xml validity)';
-		}
-		if (array_key_exists('message', $response_array) && $response_array['message']!='Valid Format') {
-			$errors[] = $response_array['message'];
-		} elseif (intval($response_array['response'])!==0) {
-			$errors[] = 'Response.response indicates request xml is in-valid, unknown Message';
-		}
-		if (empty($errors)) {
-			$status = 'good';
-		} else {
-			$status = 'error';
-		}
-		return compact('status', 'transaction_id', 'errors', 'response_array', 'response_raw');
-		*/
-	}
-		
+	
+	
 	/**
 	*
 	* Post data to authorize.net. Returns false if there is an error,
@@ -269,57 +184,56 @@ class RscdnsSource extends DataSource {
 	* @param object $Model optional
 	* @return mixed $response
 	*/
-	public function __request($data, &$Model=null) {
+	public function __request($data,$method='get', &$Model=null) {
 		$errors = array();
+		$uri = '';
+		$query = array();
+		
 		if (empty($data)) {
 			$errors[] = "Missing input data";
 			$request_raw = '';
 		} elseif (is_array($data)) {
-			$request_raw = $this->prepareApiData($data, $Model);
+			$uri = (isset($data['uri']) ? $data['uri'] : '');
+			$query = (isset($data['uri']) ? $data['query'] : array());
+			$request_raw = '';
 		} elseif (is_string($data)) {
 			$request_raw = $data;
 		} else {
 			$errors[] = "Unknown input data type";
 			$request_raw = '';
 		}
+		
+		
 		if (empty($errors)) {
 			$this->Http->reset();
+			$auth = RscdnsUtil::getConfig('auth');
+			$token = (isset($auth['token']) ? $auth['token'] : '');
 			$url = RscdnsUtil::getConfig('api_url');
-			$response_raw = $this->Http->post($url, $request_raw, array(
-				'header' => array(
-					'Connection' => 'close',
-					'User-Agent' => 'CakePHP RSC DNS Plugin',
-					)
-				));
+			$url .= $uri;
+			if ($method == 'get') {
+				debug($url);
+				debug($query);
+				//die();
+				$response_raw = $this->Http->get($url, $query, array(
+				'header'=>array(
+					'X-Auth-Token' => $token,
+					'Accept' => 'application/json',
+					'Content-Type' => 'application/json',)));	
+			}
+			
 			if ($this->Http->response['status']['code'] != 200) {
+				debug($this->Http->response['raw']);
 				$errors[] = "RscdnsSource: Error: Could not connect to RSC... bad credentials?";
 			}
 		}
 		if (empty($errors)) {
-			$response = $this->parseResponse($response_raw);
-			extract($response);
-		}
-		// look for special values
-		/*
-		$transaction_id = $response_array['transaction_id'] = $this->array_find("litleTxnId", $response_array);
-		$litleToken = $response_array['litleToken'] = $this->array_find("litleToken", $response_array);
-		if (is_object($Model)) {
-			$type = $response_array['type'] = str_replace('litle', '', strtolower($Model->alias));
+			return json_decode($response_raw,true);
+			//$response = $this->parseResponse($response_raw);
+			//extract($response);
 		} else {
-			$type = $response_array['type'] = "unkown";
+			return $errors;
 		}
-		// compact response array
-		$return = compact('type', 'status', 'transaction_id', 'litleToken', 'errors', 'data', 'request_raw', 'response_array', 'response_raw', 'url');
-		// assign to model if set
-		if (is_object($Model)) {
-			$Model->lastRequest = $return;
-			// log to an array on the model
-			if (isset($Model->log) && is_array($Model->log)) {
-				$Model->log[] = $return;
-			}
-		}
-		*/
-		return $return;
+		return false;
 	}
 	/**
 	* Recursivly look through an array to find a specific key
