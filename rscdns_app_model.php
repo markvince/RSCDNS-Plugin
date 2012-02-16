@@ -50,6 +50,29 @@ class RscdnsAppModel extends AppModel {
 		return $db->__authenticate($a);
 	}
 	
+	function beforeFind($queryData) {
+		$queryData['method']='get';
+		return $queryData;
+	}
+	
+	function beforeSave($options) {
+		$this->data['method'] = 'post';
+		return true;
+	}
+	
+	function save($data) {
+		$data['method'] = 'post';
+		$db =  ConnectionManager::getDataSource($this->useDbConfig);
+		return $db->addRecord($data);
+	}
+	
+	/**
+	* Overwrite of the exists() function
+	* means everything is a create() / new
+	*/
+	function exists() {
+		return false;
+	}
 	
 	/**
 	* Overwrite of the query() function
@@ -59,18 +82,7 @@ class RscdnsAppModel extends AppModel {
 		die("Sorry, bad method call on {$this->alias}");
 	}
 	
-	/* ------------------ */
-	/*
-	* Get list of all domains for account
-	*/
-	public function getDomains(){
-		return parent::getDomains();
-	}
-	
-	
-	
-	/* ------------------ */
-	
+		
 	public function xml2array($contents, $get_attributes = 1, $priority = 'tag') {
     if (!function_exists('xml_parser_create')) {
         return array ();

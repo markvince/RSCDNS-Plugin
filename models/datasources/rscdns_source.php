@@ -64,23 +64,11 @@ class RscdnsSource extends DataSource {
 		} else {
 			$url = $auth['auth-endpoint'].'auth.json';
 			//Using version 2.0 for authenticating
-			
 			$request = json_encode(array('credentials' => array(
 				'username' => $auth['username'],
 				'key' => $auth['key'],
 				)));
-			
-			//$request = array(
-			//	'auth' => array(
-			//		'RAX-KSKEY:apiKeyCredentials' => array(
-			//			'username' => $auth['username'],
-			//			'apikey' => $auth['key'],
-			//			)
-			//		),
-			//	);
 			$request = '{"credentials" : {"username" : "'.$auth['username'].'","key" : "'.$auth['key'].'"}}';
-			//print_r($url);
-			//print_r($request);
 			$this->Http->reset();
 			$response = $this->Http->post($url,$request,array(
 				'header'=>array(
@@ -124,34 +112,7 @@ class RscdnsSource extends DataSource {
 	* Not currently possible to read data. Method not implemented.
 	*/
 	public function read(&$Model, $queryData = array()) {
-		$uri = '';
-		$query = array();
-		/*list all domain info*/
-		if (!isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['domainName'])) {
-			$uri = '/domains'; 
-		}
-		/*list single domain info for domainId */
-		if (isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['domainName'])) {
-			$uri = '/domains/'.$queryData['conditions']['domainId']; 
-		}
-		/*list all domain info where matches domainName */
-		if (!isset($queryData['conditions']['domainId']) && isset($queryData['conditions']['domainName'])) {
-			$uri = '/domains';
-			$query['name'] = $queryData['conditions']['domainName']; 
-		}
-		/*list domain records and or subdomains for domainId*/
-		if (isset($queryData['conditions']['domainId'])	&& (isset($queryData['conditions']['showRecords']) || isset($queryData['conditions']['showSubdomains']))) {
-			$uri = '/domains/'.$queryData['conditions']['domainId'];
-			$query = $queryData['conditions'];
-			unset($query['domainId']);
-		}
-		
-		/* Query RSC DNS */
-		$response = $this->__request(array('uri'=>$uri,'query'=>$query), 'get');
-		
-		return $response;
-		
-		
+		return $this->__request($queryData, $Model);
 	}
 	/**
 	* Create a new zone entry
@@ -174,6 +135,63 @@ class RscdnsSource extends DataSource {
 		return false;
 	}
 	
+	public function prepareAPI($queryData) {
+		debug($queryData);
+		$url = '';
+		$uri= '';
+		$request = null;
+		$method='';
+		if (isset($queryData['method']) && $queryData['method'] == 'get') {
+			$method = $queryData['method'];
+			/*list all domain info*/
+			if (!isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['domainName'])) {
+				$uri = '/domains'; 
+			}
+			/*list single domain info for domainId */
+			if (isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['domainName'])) {
+				$uri = '/domains/'.$queryData['conditions']['domainId']; 
+			}
+			/*list all domain info where matches domainName */
+			if (!isset($queryData['conditions']['domainId']) && isset($queryData['conditions']['domainName'])) {
+				$uri = '/domains';
+				$request['name'] = $queryData['conditions']['domainName']; 
+			}
+			/*list domain records and or subdomains for domainId*/
+			if (isset($queryData['conditions']['domainId'])	&& (isset($queryData['conditions']['showRecords']) || isset($queryData['conditions']['showSubdomains']))) {
+				$uri = '/domains/'.$queryData['conditions']['domainId'];
+				$request = $queryData['conditions'];
+				unset($request['domainId']);
+			}
+			
+		
+		} elseif (isset($queryData['method']) && $queryData['method'] == 'post') {
+			//add new records
+			$method = $queryData['method'];
+			die('need to implement saving');
+			
+			
+		} elseif (isset($queryData['method']) && $queryData['method'] == 'put') {
+			//update new records
+			$method = $queryData['method'];
+			
+			
+		} else {}
+		
+		
+		
+		//Auth settings
+		$auth = RscdnsUtil::getConfig('auth');
+		$token = (isset($auth['token']) ? $auth['token'] : '');
+		$url = RscdnsUtil::getConfig('api_url');
+		$url .= $uri;
+		
+		return array('method'=>$method, 'url'=>$url, 'request' => $request, 'token'=>$token);
+		
+	}
+	
+	public function addRecord($data) {
+		return $this->__request($data);
+	}
 	
 	/**
 	*
@@ -184,37 +202,29 @@ class RscdnsSource extends DataSource {
 	* @param object $Model optional
 	* @return mixed $response
 	*/
-	public function __request($data,$method='get', &$Model=null) {
+	public function __request($data, &$Model=null) {
 		$errors = array();
 		$uri = '';
-		$query = array();
+		$request = null;
+		$method = '';
 		
-		if (empty($data)) {
-			$errors[] = "Missing input data";
-			$request_raw = '';
-		} elseif (is_array($data)) {
-			$uri = (isset($data['uri']) ? $data['uri'] : '');
-			$query = (isset($data['uri']) ? $data['query'] : array());
-			$request_raw = '';
-		} elseif (is_string($data)) {
-			$request_raw = $data;
-		} else {
-			$errors[] = "Unknown input data type";
-			$request_raw = '';
+		$data = $this->prepareAPI($data);
+		$request = $data['request'];
+		$url = $data['url'];
+		$method = $data['method'];
+		$token = $data['token']; 
+		
+		if (empty($method)) {
+			$errors[] = "Method Unknown";
 		}
-		
 		
 		if (empty($errors)) {
 			$this->Http->reset();
-			$auth = RscdnsUtil::getConfig('auth');
-			$token = (isset($auth['token']) ? $auth['token'] : '');
-			$url = RscdnsUtil::getConfig('api_url');
-			$url .= $uri;
 			if ($method == 'get') {
 				debug($url);
-				debug($query);
+				debug($request);
 				//die();
-				$response_raw = $this->Http->get($url, $query, array(
+				$response_raw = $this->Http->get($url, $request, array(
 				'header'=>array(
 					'X-Auth-Token' => $token,
 					'Accept' => 'application/json',

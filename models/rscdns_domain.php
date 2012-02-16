@@ -72,12 +72,33 @@ class RscdnsDomain extends RscdnsAppModel {
 			foreach ($results['recordsList']['records'] as $subdomain) {
 				echo $subdomain['name']." - ".$subdomain['id']." - ".$subdomain['data']."\r\n";
 				
-			}	
+			}
+			return $results['recordsList']['records'];
 		} else {
 			debug($results);
 		}
 		
+		return array();
 	}
+	// ---------------------
+	
+	function addDomainRecord($zone, $name, $type, $data, $ttl=3600) {
+		$domain_id = $this->getDomainId($zone);
+		if (!$domain_id) {
+			return false;
+		} else {
+			$record = array(
+				'domainId' => $domain_id,
+				'name'=>$name,
+				'type'=>$type,
+				'data'=>$data,
+				'ttl'=>$ttl
+				);
+			$result = $this->save($record);
+			return $result;
+		}
+	}
+	
 	
 	// ---------------------
 	function getDomainId($domainName) {
