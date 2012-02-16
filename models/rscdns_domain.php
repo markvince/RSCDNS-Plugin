@@ -14,7 +14,8 @@ class RscdnsDomain extends RscdnsAppModel {
 	limit - number of results to return; default to 100
 	page - which page of results to return
 	*/
-	
+	public $name = 'RscdnsDomain';
+	public $useTable = false;
 	
 	/*
 	*
@@ -24,6 +25,27 @@ class RscdnsDomain extends RscdnsAppModel {
 		debug($auth);
 		return true;
 	}
+	
+	// ----------------------------------------------------------
+	function getDomainId($domainName) {
+		$domains = $this->getDomain($domainName);
+		if (isset($domains['totalEntries']) && $domains['totalEntries'] == 1) {
+			return $domains['domains'][0]['id'];
+		} else {
+			//search for it
+			foreach ($domains['domains'] as $domain) {
+				if ($domain['name'] == $domainName) {
+					RscdnsUtil::setConfig('domainId',$domain['id']);
+					return $domain['id']; 
+				}
+			}
+		}
+		
+		return false;
+	}
+	// -----------------------------------------------------------
+	
+	
 	
 	
 	/*
@@ -81,7 +103,7 @@ class RscdnsDomain extends RscdnsAppModel {
 		return array();
 	}
 	// ---------------------
-	
+	/*
 	function addDomainRecord($zone, $name, $type, $data, $ttl=3600) {
 		$domain_id = $this->getDomainId($zone);
 		if (!$domain_id) {
@@ -98,24 +120,10 @@ class RscdnsDomain extends RscdnsAppModel {
 			return $result;
 		}
 	}
-	
+	*/
 	
 	// ---------------------
-	function getDomainId($domainName) {
-		$domains = $this->getDomain($domainName);
-		if (isset($domains['totalEntries']) && $domains['totalEntries'] == 1) {
-			return $domains['domains'][0]['id'];
-		} else {
-			//search for it
-			foreach ($domains['domains'] as $domain) {
-				if ($domain['name'] == $domainName) {
-					return $domain['id']; 
-				}
-			}
-		}
-		
-		return false;
-	}
+	
 	
 	
 	

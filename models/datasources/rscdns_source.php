@@ -112,6 +112,7 @@ class RscdnsSource extends DataSource {
 	* Not currently possible to read data. Method not implemented.
 	*/
 	public function read(&$Model, $queryData = array()) {
+		$queryData['method'] = 'get';
 		return $this->__request($queryData, $Model);
 	}
 	/**
@@ -119,6 +120,7 @@ class RscdnsSource extends DataSource {
 	*/
 	public function create(&$Model, $fields = array(), $values = array()) {
 		$data = array_combine($fields, $values);
+		$data['method'] = 'post';
 		return $this->__request($data, $Model);
 	}
 	/**
@@ -126,6 +128,7 @@ class RscdnsSource extends DataSource {
 	*/
 	public function update(&$Model, $fields = null, $values = null) {
 		$data = array_combine($fields, $values);
+		$data['method'] = 'put';
 		return $this->__request($data, $Model);
 	}
 	/**
@@ -135,49 +138,65 @@ class RscdnsSource extends DataSource {
 		return false;
 	}
 	
-	public function prepareAPI($queryData) {
-		debug($queryData);
+	public function prepareAPI($queryData,&$Model=null) {
 		$url = '';
 		$uri= '';
 		$request = null;
-		$method='';
-		if (isset($queryData['method']) && $queryData['method'] == 'get') {
-			$method = $queryData['method'];
-			/*list all domain info*/
-			if (!isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['domainName'])) {
-				$uri = '/domains'; 
+		$method = $queryData['method'];
+				
+		if ($Model->table == 'rscdns_domains') {
+			if ($method == 'get') {
+				if (!isset($queryData['conditions']['domainId']) && isset($queryData['conditions']['domainName'])) {
+					$uri = '/domains';
+					$request['name'] = $queryData['conditions']['domainName']; 
+				}	
 			}
-			/*list single domain info for domainId */
-			if (isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['domainName'])) {
-				$uri = '/domains/'.$queryData['conditions']['domainId']; 
-			}
-			/*list all domain info where matches domainName */
-			if (!isset($queryData['conditions']['domainId']) && isset($queryData['conditions']['domainName'])) {
-				$uri = '/domains';
-				$request['name'] = $queryData['conditions']['domainName']; 
-			}
-			/*list domain records and or subdomains for domainId*/
-			if (isset($queryData['conditions']['domainId'])	&& (isset($queryData['conditions']['showRecords']) || isset($queryData['conditions']['showSubdomains']))) {
-				$uri = '/domains/'.$queryData['conditions']['domainId'];
-				$request = $queryData['conditions'];
-				unset($request['domainId']);
-			}
-			
+		}
 		
-		} elseif (isset($queryData['method']) && $queryData['method'] == 'post') {
-			//add new records
-			$method = $queryData['method'];
-			die('need to implement saving');
+		if ($Model->table == 'rscdns_records') {
+			$allowed_keys = array('name','data','type','ttl', 'priority');
+			//get  /domains/{domainId}/records - List all records for a domain
+			//post /domains/{domainId}/records - Add record(s) for a domain
+			//put  /domains/{domainId}/records - Modify the configuration for records in the domain
 			
+			//get /domains/{domainId}/records/{recordId} - List details for a specific record in the specified domain
+			//put /domains/{domainId}/records/{recordId} - Modify the configuration for a record in the domain
+			//delete /domains/{domainId}/records/{recordId} - Remove a record from the domain.
 			
-		} elseif (isset($queryData['method']) && $queryData['method'] == 'put') {
-			//update new records
-			$method = $queryData['method'];
-			
-			
-		} else {}
-		
-		
+			//delete /domains/{domainId}/records?id={recordId1}&id={recordId2} - Remove records from the domain.
+						
+			if ($method == 'get') {
+				if (isset($queryData['conditions']['domainId']) && isset($queryData['conditions']['recordId'])) {
+					$uri = '/domains/'.$queryData['conditions']['domainId'].'/records/'.$queryData['conditions']['recordId'];
+					$request=array();
+				} elseif (isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['recordId'])) {
+					$uri = '/domains/'.$queryData['conditions']['domainId'].'/records';
+					$request=array();
+				}
+			} elseif ($method == 'post') {
+				if (isset($queryData['domainId'])) {
+					$uri = '/domains/'.$queryData['domainId'].'/records';
+					$request['records'][] = $queryData;
+					foreach ($request['records'] as $reqkey => $reqval) {
+						foreach ($reqval as $reckey => $recval) {
+							if (!in_array($reckey, $allowed_keys)) {
+								unset($request['records'][$reqkey][$reckey]);
+							}	
+						}
+					}
+				}
+			}  elseif ($method == 'put') {
+				if (isset($queryData['domainId']) && isset($queryData['id'])) {
+					$uri = '/domains/'.$queryData['domainId'].'/records/'.$queryData['id'];
+					$request = $queryData;
+					foreach ($request as $reckey => $recval) {
+						if (!in_array($reckey, $allowed_keys)) {
+							unset($request[$reckey]);
+						}	
+					}
+				}
+			}	
+		}
 		
 		//Auth settings
 		$auth = RscdnsUtil::getConfig('auth');
@@ -187,10 +206,6 @@ class RscdnsSource extends DataSource {
 		
 		return array('method'=>$method, 'url'=>$url, 'request' => $request, 'token'=>$token);
 		
-	}
-	
-	public function addRecord($data) {
-		return $this->__request($data);
 	}
 	
 	/**
@@ -208,7 +223,7 @@ class RscdnsSource extends DataSource {
 		$request = null;
 		$method = '';
 		
-		$data = $this->prepareAPI($data);
+		$data = $this->prepareAPI($data,$Model);
 		$request = $data['request'];
 		$url = $data['url'];
 		$method = $data['method'];
@@ -221,9 +236,6 @@ class RscdnsSource extends DataSource {
 		if (empty($errors)) {
 			$this->Http->reset();
 			if ($method == 'get') {
-				debug($url);
-				debug($request);
-				//die();
 				$response_raw = $this->Http->get($url, $request, array(
 				'header'=>array(
 					'X-Auth-Token' => $token,
@@ -231,15 +243,33 @@ class RscdnsSource extends DataSource {
 					'Content-Type' => 'application/json',)));	
 			}
 			
+			if ($method == 'post') {
+				$request = json_encode($request);
+				$request = str_replace(':',' : ',$request);
+				$response_raw = $this->Http->post($url, $request, array(
+				'header'=>array(
+					'X-Auth-Token' => $token,
+					'Accept' => 'application/json',
+					'Content-Type' => 'application/json',)));
+			} 
+			
+			if ($method == 'put') {
+				$request = json_encode($request);
+				$request = str_replace(':',' : ',$request);
+				$response_raw = $this->Http->put($url, $request, array(
+				'header'=>array(
+					'X-Auth-Token' => $token,
+					'Accept' => 'application/json',
+					'Content-Type' => 'application/json',)));
+			}
+			
 			if ($this->Http->response['status']['code'] != 200) {
-				debug($this->Http->response['raw']);
+				print_r($this->Http->response['raw']);
 				$errors[] = "RscdnsSource: Error: Could not connect to RSC... bad credentials?";
 			}
 		}
 		if (empty($errors)) {
 			return json_decode($response_raw,true);
-			//$response = $this->parseResponse($response_raw);
-			//extract($response);
 		} else {
 			return $errors;
 		}

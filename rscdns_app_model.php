@@ -50,28 +50,17 @@ class RscdnsAppModel extends AppModel {
 		return $db->__authenticate($a);
 	}
 	
-	function beforeFind($queryData) {
-		$queryData['method']='get';
-		return $queryData;
-	}
-	
-	function beforeSave($options) {
-		$this->data['method'] = 'post';
-		return true;
-	}
-	
-	function save($data) {
-		$data['method'] = 'post';
-		$db =  ConnectionManager::getDataSource($this->useDbConfig);
-		return $db->addRecord($data);
-	}
+	//function beforeFind($queryData) {
+	//	$queryData['method']='get';
+	//	return $queryData;
+	//}
 	
 	/**
 	* Overwrite of the exists() function
-	* means everything is a create() / new
+	* If we have an id assume we're updating
 	*/
 	function exists() {
-		return false;
+		return (isset($this->data[$this->alias]['id']) && !empty($this->data[$this->alias]['id']) ? true : false);
 	}
 	
 	/**
