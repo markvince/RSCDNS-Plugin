@@ -135,7 +135,12 @@ class RscdnsSource extends DataSource {
 	* Delete zone entry
 	*/
 	public function delete(&$Model, $id = null) {
-		return false;
+		$recordId = $id["$Model->alias.id"];
+		$data = array('method'=>'delete');
+		if (isset($id["$Model->alias.id"])) {
+			$data['id'] = $id["$Model->alias.id"];	
+		}
+		return $this->__request($data, $Model);
 	}
 	
 	public function prepareAPI($queryData,&$Model=null) {
@@ -164,18 +169,31 @@ class RscdnsSource extends DataSource {
 			//delete /domains/{domainId}/records/{recordId} - Remove a record from the domain.
 			
 			//delete /domains/{domainId}/records?id={recordId1}&id={recordId2} - Remove records from the domain.
-						
+			
+			$domainId = RscdnsUtil::getConfig('domainId');
+			if (empty($domainId) && isset($queryData['conditions']['domainId'])) {
+				$domainId = $queryData['conditions']['domainId'];
+			} elseif (empty($domainId) && !isset($queryData['conditions']['domainId'])) {
+				unset($domainId);
+			}
+			//debug($domainId);
+			//debug($queryData);
+			
+			if (isset($queryData['conditions'][$Model->alias.'id'])) {
+				$queryData['conditions']['id'] = $queryData['conditions'][$Model->alias.'id']; 
+			}
+			
 			if ($method == 'get') {
-				if (isset($queryData['conditions']['domainId']) && isset($queryData['conditions']['recordId'])) {
-					$uri = '/domains/'.$queryData['conditions']['domainId'].'/records/'.$queryData['conditions']['recordId'];
+				if (isset($domainId) && isset($queryData['conditions']['id'])) {
+					$uri = '/domains/'.$domainId.'/records/'.$queryData['conditions']['id'];
 					$request=array();
-				} elseif (isset($queryData['conditions']['domainId']) && !isset($queryData['conditions']['recordId'])) {
-					$uri = '/domains/'.$queryData['conditions']['domainId'].'/records';
+				} elseif (isset($domainId) && !isset($queryData['conditions']['recordId'])) {
+					$uri = '/domains/'.$domainId.'/records';
 					$request=array();
 				}
 			} elseif ($method == 'post') {
-				if (isset($queryData['domainId'])) {
-					$uri = '/domains/'.$queryData['domainId'].'/records';
+				if (isset($domainId)) {
+					$uri = '/domains/'.$domainId.'/records';
 					$request['records'][] = $queryData;
 					foreach ($request['records'] as $reqkey => $reqval) {
 						foreach ($reqval as $reckey => $recval) {
@@ -185,9 +203,10 @@ class RscdnsSource extends DataSource {
 						}
 					}
 				}
+				
 			}  elseif ($method == 'put') {
-				if (isset($queryData['domainId']) && isset($queryData['id'])) {
-					$uri = '/domains/'.$queryData['domainId'].'/records/'.$queryData['id'];
+				if (isset($domainId) && isset($queryData['id'])) {
+					$uri = '/domains/'.$domainId.'/records/'.$queryData['id'];
 					$request = $queryData;
 					foreach ($request as $reckey => $recval) {
 						if (!in_array($reckey, $allowed_keys)) {
@@ -195,7 +214,12 @@ class RscdnsSource extends DataSource {
 						}	
 					}
 				}
-			}	
+			} elseif ($method == 'delete') {
+				if (isset($domainId) && isset($queryData['id'])) {
+					$uri = '/domains/'.$domainId.'/records/'.$queryData['id'];
+					$request = array();
+				}
+			}
 		}
 		
 		//Auth settings
@@ -257,6 +281,19 @@ class RscdnsSource extends DataSource {
 				$request = json_encode($request);
 				$request = str_replace(':',' : ',$request);
 				$response_raw = $this->Http->put($url, $request, array(
+				'header'=>array(
+					'X-Auth-Token' => $token,
+					'Accept' => 'application/json',
+					'Content-Type' => 'application/json',)));
+			}
+			
+			if ($method == 'delete') {
+				$request = json_encode($request);
+				$request = str_replace(':',' : ',$request);
+				debug($url);
+				debug($request);
+				//die();
+				$response_raw = $this->Http->delete($url, $request, array(
 				'header'=>array(
 					'X-Auth-Token' => $token,
 					'Accept' => 'application/json',

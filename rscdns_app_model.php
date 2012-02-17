@@ -60,7 +60,9 @@ class RscdnsAppModel extends AppModel {
 	* If we have an id assume we're updating
 	*/
 	function exists() {
-		return (isset($this->data[$this->alias]['id']) && !empty($this->data[$this->alias]['id']) ? true : false);
+		$update_check = (isset($this->data[$this->alias]['id']) && !empty($this->data[$this->alias]['id']) ? true : false);
+		$delete_check = (isset($this->id) && !empty($this->id) ? true : false);
+		return ($update_check || $delete_check);
 	}
 	
 	/**

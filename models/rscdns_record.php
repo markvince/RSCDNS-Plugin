@@ -16,17 +16,17 @@ class RscdnsRecord extends RscdnsAppModel {
 	
 	
 	//Get Record
-	function getRecord ($zone, $name) {
+	function getRecord ($zone, $name, $type='A') {
 		$records = $this->getRecords($zone);
 		foreach ($records['records'] as $record) {
-			if ($record['name'] == $name) {
+			if ($record['name'] == $name && $record['type'] == $type) {
 				return $record;
 			}
 		}
-		
+		return array();
 	}
 	
-	//Get Records For Zone by Name
+	//Get Records For Domain
 	function getRecords($zone) {
 		$domainId = $this->getDomainId($zone);
 		$conditions = array('domainId'=>$domainId);
@@ -34,6 +34,7 @@ class RscdnsRecord extends RscdnsAppModel {
 		return $records;
 	}
 	
+	//Add Single Record
 	function addRecord($zone, $name, $type, $data, $ttl=3600) {
 		$domainId = $this->getDomainId($zone);
 		$recordData = array(
@@ -48,8 +49,9 @@ class RscdnsRecord extends RscdnsAppModel {
 		return $result;
 	}
 	
+	//Update single record
 	function updateRecord($zone, $name, $type, $data, $ttl=3600) {
-		$recordId = $this->getRecordId($zone, $name);
+		$recordId = $this->getRecordId($zone, $name, $type);
 		$domainId = $this->getDomainId($zone);
 		$recordData = array(
 			'id'=>$recordId,
@@ -62,8 +64,15 @@ class RscdnsRecord extends RscdnsAppModel {
 		return $this->save($recordData);		
 	}
 	
-	function getRecordId($zone, $name) {
-		$record = $this->getRecord($zone, $name);
+	//Delete single record
+	function deleteRecord($zone, $name, $type) {
+		$recordId = $this->getRecordId($zone, $name, $type);
+		return $this->delete($recordId);
+	}
+	
+	//Get RecordId
+	function getRecordId($zone, $name, $type) {
+		$record = $this->getRecord($zone, $name, $type);
 		return (isset($record['id']) ? $record['id'] : '');
 	}
 	
