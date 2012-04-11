@@ -11,6 +11,7 @@ class RscdnsRecord extends RscdnsAppModel {
 		'type' => array('type' => 'string', 'length' => '15', 'comment' => 'A, CNAME, MX, TXT, etc'),
 		'data' => array('type' => 'string', 'length' => '100', 'comment' => 'The records value'),
 		'ttl' => array('type' => 'integer', 'length' => '8', 'comment' => 'Time To Live'),
+		'priority' => array('type' => 'integer', 'length' => '8', 'comment' => 'Priority field for MX records'),
 		);
 	
 	
@@ -35,7 +36,7 @@ class RscdnsRecord extends RscdnsAppModel {
 	}
 	
 	//Add Single Record
-	function addRecord($zone, $name, $type, $data, $ttl=3600) {
+	function addRecord($zone, $name, $type, $data, $ttl=3600, $priority=null) {
 		$domainId = $this->getDomainId($zone);
 		$recordData = array(
 			'id'=>null,
@@ -45,12 +46,15 @@ class RscdnsRecord extends RscdnsAppModel {
 			'data' => $data,
 			'ttl' => $ttl
 			);
+		if (!is_null($priority) && $type == 'MX') {
+			$recordData['priority'] = $priority;
+		}
 		$result = $this->save($recordData);
 		return $result;
 	}
 	
 	//Update single record
-	function updateRecord($zone, $name, $type, $data, $ttl=3600) {
+	function updateRecord($zone, $name, $type, $data, $ttl=3600, $priority=null) {
 		$recordId = $this->getRecordId($zone, $name, $type);
 		$domainId = $this->getDomainId($zone);
 		$recordData = array(
@@ -61,6 +65,9 @@ class RscdnsRecord extends RscdnsAppModel {
 			'data' => $data,
 			'ttl' => $ttl
 			); 
+		if (!is_null($priority) && $type == 'MX') {
+			$recordData['priority'] = $priority;
+		}
 		return $this->save($recordData);		
 	}
 	
