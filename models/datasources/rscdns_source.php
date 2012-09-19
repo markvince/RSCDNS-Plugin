@@ -301,7 +301,7 @@ class RscdnsSource extends DataSource {
 			}
 			
 			if ($this->Http->response['status']['code'] != 200) {
-				print_r($this->Http->response['raw']);
+				//print_r($this->Http->response['raw']);
 				$errors[] = "RscdnsSource: Error: Could not connect to RSC... bad credentials?";
 			}
 		}
