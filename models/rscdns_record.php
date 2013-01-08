@@ -36,6 +36,14 @@ class RscdnsRecord extends RscdnsAppModel {
 	}
 	
 	//Add Single Record
+	/*
+	*	@param $zone - example.com - Zone we're adding a record to
+	*	@param $name - test.example.com - Full record name we're adding
+	* 	@param $type - CNAME - Type of DNS record
+	*	@param $data - dev.example.com - Data for this record
+	* 	
+	*  Example: addRecord('example.com', 'test.example.com', 'CNAME', 'dev.example.com')
+	*/
 	function addRecord($zone, $name, $type, $data, $ttl=3600, $priority=null) {
 		$domainId = $this->getDomainId($zone);
 		$recordData = array(
